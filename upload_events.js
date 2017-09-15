@@ -17,8 +17,8 @@ var db = pgp(cn);
 //Default
 var today = new Date()
 var eventParams = {
-  endDateTime:today.getFullYear() + "/" + today.getMonth() + "/" + today.getDate() + " 23:59:00",
-  startDateTime:today.getFullYear() + "/" + today.getMonth() + "/" + today.getDate() + " 00:00:00" 
+  endDateTime:today.getFullYear() + "/" + (today.getMonth() + 1) + "/" + today.getDate() + " 23:59:00",
+  startDateTime:today.getFullYear() + "/" + (today.getMonth() + 1) + "/" + today.getDate() + " 00:00:00" 
 }
 
 switch(process.argv.length){
