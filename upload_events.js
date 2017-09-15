@@ -14,11 +14,11 @@ var cn = db_info
 var pgp = require('pg-promise')(options);
 var db = pgp(cn);
 
-
-
+//Default
+var today = new Date()
 var eventParams = {
-  endDateTime:"2017/9/14 23:59:00",
-  startDateTime:"2017/9/14 00:00:00" 
+  endDateTime:today.getFullYear() + "/" + today.getMonth() + "/" + today.getDate() + " 23:59:00",
+  startDateTime:today.getFullYear() + "/" + today.getMonth() + "/" + today.getDate() + " 00:00:00" 
 }
 
 switch(process.argv.length){
@@ -52,20 +52,32 @@ switch(process.argv.length){
     return;
 }
 
+//Check to make sure end is after start
+if(Date.parse(eventParams["endDateTime"]) < Date.parse(eventParams["startDateTime"])){
+  console.log("End date must be equal to or after start date")
+  return;
+}
 
+var startDate = new Date(eventParams["startDateTime"])
+//Check to make sure start day is before or equal to today
+if(startDate.getMonth() > today.getMonth()){
+  console.log("Start date must be before or equal to today's date")
+  return;
+}
+else if(startDate.getMonth() == today.getMonth() && startDate.getDate() > today.getDate()){
+  console.log("Start date must be before or equal to today's date")
+  return;
+}
 
-
-
+console.log(eventParams)
 getEventsFromAPI(eventParams)
 
+
 /*
-*
 * Receives data from "parseData"
 * Receives as CSV
 * Creates Temp Table, copy into that. Then insert into real table, resolving conflicts as necessary 
-*
 */
-
 function copyIntoDb(csv){
   db.connect()
   .then(function (con) {
@@ -149,7 +161,6 @@ function copyIntoDb(csv){
 * Receives data from "getEventsFromAPI" in JSON format
 * Sends "CSV" to "copyIntoDb"
 */
-
 function parseData(data){
   var parsedData = JSON.parse(data)['list']
   var newData = []
@@ -185,12 +196,9 @@ function parseData(data){
 }
 
 /*
-* 
 * GET NEW EVENTS FROM API
 * Sends JSON of events to parseData
-*
 */
-
 function getEventsFromAPI(params){
   var searchInputs = {}
   var postData = {}
