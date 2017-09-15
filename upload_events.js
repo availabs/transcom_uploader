@@ -74,7 +74,7 @@ else if(startDate.getMonth() == today.getMonth() && startDate.getDate() > today.
 }
 
 console.log(eventParams)
-//getEventsFromAPI(eventParams)
+getEventsFromAPI(eventParams)
 
 
 /*
