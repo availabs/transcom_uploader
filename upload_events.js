@@ -29,15 +29,19 @@ switch(process.argv.length){
     console.log("Must use either '-start' or '-end' when only giving one date.")
     return; 
   case 4:
-    if(process.argv[2].toLowerCase() != "-start" && process.argv[2].toLowerCase() != "-end"){
+    if(!process.argv[2].includes("-")){
       eventParams["endDateTime"] = process.argv[3] + " 23:59:00"
       eventParams["startDateTime"] = process.argv[2] + " 00:00:00"
     }
     else if(process.argv[2].toLowerCase() == "-start"){
       eventParams["startDateTime"] = process.argv[3] + " 00:00:00"   
     }
-    else{
+    else if(process.argv[2].toLowerCase() == "-end"){
       eventParams["endDateTime"] = process.argv[3] + " 23:59:00" 
+    }
+    else{
+      console.log("Invalid command line parameter:" + process.argv[2])
+      return;
     }
     break;
   case 5:
@@ -70,7 +74,7 @@ else if(startDate.getMonth() == today.getMonth() && startDate.getDate() > today.
 }
 
 console.log(eventParams)
-getEventsFromAPI(eventParams)
+//getEventsFromAPI(eventParams)
 
 
 /*
