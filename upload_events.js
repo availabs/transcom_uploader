@@ -85,11 +85,15 @@ getEventsFromAPI(eventParams)
 function copyIntoDb(csv){
   db.connect()
   .then(function (con) {
-    console.log("using copy library")
     var client = con.client;
+    var start = new Date();
+    var end;
 
-    function copyFromTemp(err, secondParam){
-      console.log("copyFromTemp", err, secondParam)
+    function copyFromTemp(setEventCatErr){
+      //console.log("copyFromTemp. setEventCat err:", setEventCatErr)
+      end = new Date() - start
+      console.log(('setEventCat took: '+ end + 'ms'))  
+      start = new Date(); 
 
       var copyRows = client.query(`
         INSERT INTO transcom_events
@@ -116,8 +120,10 @@ function copyIntoDb(csv){
           event_category = EXCLUDED.event_category
       `)        
 
-      copyRows.on("end",function(error, param1){
-        console.log("end of copy rows", error, param1)
+      copyRows.on("end",function(copyErr){
+        //console.log("end of copyRows. copyRows err:", copyErr)
+        end = new Date() - start
+        console.log(('copyFromTemp took: '+ end + 'ms'))  
 
         var dropTemp = client.query('drop table transcom_temp;')
 
@@ -126,19 +132,42 @@ function copyIntoDb(csv){
           con.done()
         })
       })
-
     }
 
-    function populateTemp(err, secondParam){
-      console.log("populateTemp", err, secondParam)
+    function setEventCat(err){
+      //console.log("setEventCat. populateTemp Err:", err)
+      end = new Date() - start
+      console.log(('populateTemp took: '+ end + 'ms'))  
+      start = new Date();  
+      var eventCatQuery = client.query(`
+        UPDATE 
+          transcom_temp AS t 
+        SET 
+          event_category = e.event_category
+        FROM 
+          transcom_events AS e 
+        WHERE 
+          e.event_type = t.event_type AND
+          e.event_category != 'null'
+      `)
+
+      eventCatQuery.on("end", copyFromTemp)
+      eventCatQuery.on("error", errorDone)
+    }
+
+    function populateTemp(createErr){
+      //console.log("populateTemp. createTable err:", createErr)
+      end = new Date() - start
+      console.log(('createTable took: '+ end + 'ms'))  
+      start = new Date();  
       var stream = client.query(copyFrom('COPY transcom_temp FROM STDIN WITH (FORMAT csv, DELIMITER (\'\t\') , FORCE_NULL("close_time"))  '));
 
       var fileStream = new Readable
-      fileStream.push(csv)    // the string you want
-      fileStream.push(null)      // indicates end-of-file basically - the end of the stream
+      fileStream.push(csv) // the string you want
+      fileStream.push(null) // indicates end-of-file basically - the end of the stream
       fileStream.on('error', errorDone);
       stream.on('error', errorDone);
-      stream.on('end', copyFromTemp);
+      stream.on('end', setEventCat);
       fileStream.pipe(stream);
     }
 
@@ -156,6 +185,7 @@ function copyIntoDb(csv){
 
     function errorDone(err){
       console.log("ERROR: ", err)
+      con.done()
     }
   }) 
 }
@@ -168,7 +198,8 @@ function copyIntoDb(csv){
 function parseData(data){
   var parsedData = JSON.parse(data)['list']
   var newData = []
-  console.log(parsedData.length)
+
+  var start = new Date();
   parsedData.forEach((row,index) => {
     var newRow = {}
 
@@ -195,7 +226,9 @@ function parseData(data){
 
   var fields = ['event_id', 'event_type', 'facility', 'creation', 'open_time', 'close_time', 'duration', 'description', 'from_city', 'from_count', 'to_city', 'state', 'from_mile_marker', 'to_mile_marker', 'latitude', 'longitude', 'event_category'];
   var result = json2csv({ del:"\t",quotes:'' ,data: newData, fields: fields, hasCSVColumnTitle:false });
-
+  
+  var end = new Date() - start
+  console.log(('Converting/Parsing data took: '+ end + 'ms'))   
   copyIntoDb(result)
 }
 
@@ -227,7 +260,7 @@ function getEventsFromAPI(params){
   }
 
   postData = JSON.stringify(searchInputs)
-  console.log(postData)
+  //console.log(postData)
   const options = {
     hostname: 'xcmdfe1.xcmdata.org',
     port: 80,
@@ -245,7 +278,6 @@ function getEventsFromAPI(params){
     var myBody = [];
     response.on('data', (chunk) => {
       index++;
-      //console.log("chunk #",index)
       myBody.push(chunk.toString())
 
     });
