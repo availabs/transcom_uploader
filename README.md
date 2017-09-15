@@ -1,3 +1,4 @@
+STEPS TO RUN:
 1) npm install
 2) create "DB_INFO.json" with DB info 
 3) node upload_events (assumes public.transcom_events table in npmrds_api)
