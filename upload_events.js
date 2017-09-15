@@ -14,18 +14,47 @@ var cn = db_info
 var pgp = require('pg-promise')(options);
 var db = pgp(cn);
 
-// var eventParams = {
-//   /*
-//   * YYYY/M/D
-//   */
-//   endDateTime:"2016/11/01 23:59:00",
-//   startDateTime:"2016/10/01 00:00:00" 
-// }
+
 
 var eventParams = {
   endDateTime:"2017/9/14 23:59:00",
   startDateTime:"2017/9/14 00:00:00" 
 }
+
+switch(process.argv.length){
+  case 2:
+    //use default values
+    break;
+  case 3:
+    console.log("Must use either '-start' or '-end' when only giving one date.")
+    return; 
+  case 4:
+    if(process.argv[2].toLowerCase() != "-start" && process.argv[2].toLowerCase() != "-end"){
+      eventParams["endDateTime"] = process.argv[3] + " 23:59:00"
+      eventParams["startDateTime"] = process.argv[2] + " 00:00:00"
+    }
+    else if(process.argv[2].toLowerCase() == "-start"){
+      eventParams["startDateTime"] = process.argv[3] + " 00:00:00"   
+    }
+    else{
+      eventParams["endDateTime"] = process.argv[3] + " 23:59:00" 
+    }
+    break;
+  case 5:
+    console.log("Incorrect number of arguments. Specify '-start' or '-end' with a date, or supply two dates")
+    return;
+  case 6:
+    eventParams["endDateTime"] = process.argv[5] + " 23:59:00"
+    eventParams["startDateTime"] = process.argv[3] + " 00:00:00"
+    break;  
+  case 7:
+    console.log("Incorrect number of arguments. Specify '-start' or '-end' with a date, or supply two dates")
+    return;
+}
+
+
+
+
 
 getEventsFromAPI(eventParams)
 
