@@ -117,7 +117,8 @@ function copyIntoDb(csv){
           to_mile_marker = EXCLUDED.to_mile_marker,
           latitude = EXCLUDED.latitude,
           longitude = EXCLUDED.longitude,
-          event_category = EXCLUDED.event_category
+          event_category = EXCLUDED.event_category,
+          point_geom = EXCLUDED.point_geom
       `)        
 
       copyRows.on("end",function(copyErr){
@@ -143,7 +144,8 @@ function copyIntoDb(csv){
         UPDATE 
           transcom_temp AS t 
         SET 
-          event_category = e.event_category
+          event_category = e.event_category,
+          point_geom = ST_MakePoint(t.longitude, t.latitude)::geography::geometry
         FROM 
           transcom_events AS e 
         WHERE 
@@ -220,11 +222,12 @@ function parseData(data){
     newRow['latitude'] = row['pointLAT']
     newRow['longitude'] = row['pointLON']
     newRow['event_category'] = ""
+    newRow['point_geom'] = ""
 
     newData.push(newRow)
   }) 
 
-  var fields = ['event_id', 'event_type', 'facility', 'creation', 'open_time', 'close_time', 'duration', 'description', 'from_city', 'from_count', 'to_city', 'state', 'from_mile_marker', 'to_mile_marker', 'latitude', 'longitude', 'event_category'];
+  var fields = ['event_id', 'event_type', 'facility', 'creation', 'open_time', 'close_time', 'duration', 'description', 'from_city', 'from_count', 'to_city', 'state', 'from_mile_marker', 'to_mile_marker', 'latitude', 'longitude', 'event_category','point_geom'];
   var result = json2csv({ del:"\t",quotes:'' ,data: newData, fields: fields, hasCSVColumnTitle:false });
   
   var end = new Date() - start
