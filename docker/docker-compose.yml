@@ -1,0 +1,13 @@
+version: '2'
+services:
+    db:
+      image: mdillon/postgis:10
+      container_name: transcom_loader_dev_db
+      ports:
+        - "5432:5432"
+      volumes:
+        - ./pg_data:/data
+        - ./sqlScripts/:/sqlScripts/
+      env_file: "../config/postgres.docker.env"
+      environment:
+        - PGDATA=/data
