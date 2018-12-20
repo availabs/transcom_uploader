@@ -3,6 +3,8 @@
 const { spawnSync } = require('child_process');
 const { join } = require('path');
 
+const NODE_ENV = 'development';
+
 const scriptPath = join(__dirname, '../src/uploadTranscomData.js');
 
 const yrmos = [[2017, 10], [2017, 11], [2017, 12]].concat(
@@ -28,7 +30,7 @@ for (let i = 0; i < yrmos.length; i += 1) {
   const { stdout, stderr } = spawnSync(
     scriptPath,
     [`--startDateTime=${startDateTime}`, `--endDateTime=${endDateTime}`],
-    { encoding: 'utf8' }
+    { encoding: 'utf8', env: { NODE_ENV } }
   );
 
   console.log('='.repeat(10), `${YYYY}/${MM}`, '='.repeat(10));
