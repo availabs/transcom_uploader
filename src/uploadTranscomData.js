@@ -118,11 +118,13 @@ const parseData = inputData => {
 
   const result = json2csv({
     del: '\t',
-    quotes: '',
+    // quotes: '',
+    defaultValue: '',
     data: newData,
     COLUMNS,
     hasCSVColumnTitle: false
   });
+  require('fs').writeFileSync('data.csv', result);
 
   return result;
 };
@@ -142,7 +144,30 @@ const populateTempTable = csv =>
   new Promise((resolve, reject) => {
     const stream = client.query(
       copyFrom(
-        `COPY ${TMP_TABLE} (${COLUMNS}) FROM STDIN WITH (FORMAT csv, DELIMITER ('\t') , FORCE_NULL("close_time"));`
+        `COPY ${TMP_TABLE} (${COLUMNS})
+          FROM STDIN WITH (
+            FORMAT csv,
+            DELIMITER ('\t'),
+            FORCE_NULL(
+              'event_type',
+              'facility',
+              'creation',
+              'open_time',
+              'close_time',
+              'duration',
+              'description',
+              'from_city',
+              'from_count',
+              'to_city',
+              'state',
+              'from_mile_marker',
+              'to_mile_marker',
+              'latitude',
+              'longitude',
+              'event_category',
+              'point_geom'
+            )
+          );`
       )
     );
 
