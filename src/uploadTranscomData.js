@@ -8,6 +8,13 @@ const envFile = require('node-env-file');
 const request = require('request-promise-native');
 const { Readable } = require('stream');
 const copyFrom = require('pg-copy-streams').from;
+const minimist = require('minimist');
+const { Client } = require('pg');
+
+const eventTypes2Categories = require('./eventTypes2Categories');
+
+const argv = minimist(process.argv.slice(2), { boolean: true });
+console.log(JSON.stringify(argv, null, 4));
 
 const configFile =
   process.env.NODE_ENV === 'production'
@@ -15,8 +22,6 @@ const configFile =
     : 'postgres.env.dev';
 
 envFile(join(__dirname, '../config/', configFile));
-
-const { Client } = require('pg');
 
 const client = new Client();
 
@@ -47,7 +52,8 @@ const COLUMNS = [
 ];
 
 const getLatestStartTime = async () => {
-  const q = 'SELECT MAX(creation) AS latest FROM transcom_events;';
+  const q =
+    "SELECT to_char(MAX(creation), 'YYYY/MM/DD HH24:MI:SS') AS latest FROM transcom_events;";
 
   const {
     rows: [{ latest }]
@@ -56,7 +62,8 @@ const getLatestStartTime = async () => {
 };
 
 const getLatestUpdateTime = async () => {
-  const q = 'SELECT MAX(open_time) AS latest FROM transcom_events;';
+  const q =
+    "SELECT to_char(MAX(open_time), 'YYYY/MM/DD HH24:MI:SS') AS latest FROM transcom_events;";
 
   const {
     rows: [{ latest }]
@@ -102,7 +109,8 @@ const parseData = inputData => {
     newRow.to_mile_marker = row.secondaryMarker;
     newRow.latitude = row.pointLAT;
     newRow.longitude = row.pointLON;
-    newRow.event_category = '';
+    newRow.event_category =
+      eventTypes2Categories[row.eventType.toLowerCase()] || 'other';
     newRow.point_geom = '';
 
     newData.push(newRow);
@@ -147,19 +155,10 @@ const populateTempTable = csv =>
     fileStream.pipe(stream);
   });
 
-const setEventCategory = () =>
+const setPointGeom = () =>
   client.query(`
-      UPDATE ${TMP_TABLE} AS t
-        SET
-          event_category = e.event_category,
-          point_geom = ST_MakePoint(t.longitude, t.latitude)::geography::geometry
-        FROM
-          transcom_events AS e
-        WHERE (
-          (e.event_type = t.event_type)
-          AND
-          (e.event_category != 'null')
-        )
+      UPDATE ${TMP_TABLE}
+        SET point_geom = ST_MakePoint(longitude, latitude)::geography::geometry
     `);
 
 const copyFromTemp = () =>
@@ -194,15 +193,17 @@ const mapEventsToTMCs = async latestUpdateTime => {
   const sql = `
     BEGIN;
 
+    DROP TABLE IF EXISTS tmp_buffered_event_pts;
     CREATE TEMPORARY TABLE tmp_buffered_event_pts
     AS
       SELECT
           event_id,
           point_geom,
-          ST_Buffer(point_geom, 0.025) AS buffered_pt
+          ST_Buffer(GEOGRAPHY(point_geom), 75) AS buffered_pt
         FROM transcom_events
         WHERE (
-          (close_time >= '${latestUpdateTime}')
+          (close_time >= '${latestUpdateTime ||
+            '1900/01/01 00:00:00'}'::TIMESTAMP)
           AND
           (tmc IS NULL)
         )
@@ -212,12 +213,13 @@ const mapEventsToTMCs = async latestUpdateTime => {
     CLUSTER tmp_buffered_event_pts USING tmp_buffered_event_pts_idx;
     ANALYZE tmp_buffered_event_pts;
 
+    DROP TABLE IF EXISTS tmp_buffered_tmcs;
     CREATE TEMPORARY TABLE tmp_buffered_tmcs
     AS
       SELECT
           tmc,
           wkb_geometry,
-          ST_Buffer(wkb_geometry, 0.025) AS buffered_tmc
+          ST_Buffer(GEOGRAPHY(wkb_geometry), 75) AS buffered_tmc
         FROM ny.inrix_shapefile_20171107
     ;
 
@@ -225,7 +227,8 @@ const mapEventsToTMCs = async latestUpdateTime => {
     CLUSTER tmp_buffered_tmcs USING tmp_buffered_tmcs_idx;
     ANALYZE tmp_buffered_tmcs;
 
-    CREATE TABLE tmp_events_to_tmcs
+    DROP TABLE IF EXISTS tmp_events_to_tmcs;
+    CREATE TEMPORARY TABLE tmp_events_to_tmcs
     AS
     SELECT
         event_id,
@@ -237,22 +240,20 @@ const mapEventsToTMCs = async latestUpdateTime => {
               MIN(ST_Distance(te.point_geom, shp.wkb_geometry))
                 OVER (PARTITION BY event_id) AS min_dist
             FROM tmp_buffered_event_pts AS te
-              INNER JOIN tmp_buffered_tmcs AS shp
+              JOIN tmp_buffered_tmcs AS shp
               ON (te.buffered_pt && shp.buffered_tmc)
           ) AS sub_min_dists USING (event_id)
         INNER JOIN tmp_buffered_tmcs AS shp
-          ON (
-            (te.buffered_pt && shp.buffered_tmc)
-          )
+          ON (te.buffered_pt && shp.buffered_tmc)
         WHERE (ST_Distance(te.point_geom, shp.wkb_geometry) = sub_min_dists.min_dist)
         GROUP BY event_id
     ;
 
     UPDATE transcom_events
-      SET tmc = tmp_transcom_tmc.tmc 
-        FROM tmp_transcom_tmc
+      SET tmc = tmp_events_to_tmcs.tmc 
+        FROM tmp_events_to_tmcs
         WHERE (
-          (transcom_events.event_id = tmp_transcom_tmc.event_id)
+          (transcom_events.event_id = tmp_events_to_tmcs.event_id)
           AND
           (transcom_events.tmc is null)
         )
@@ -262,14 +263,6 @@ const mapEventsToTMCs = async latestUpdateTime => {
   `;
 
   await client.query(sql);
-
-  console.log(
-    JSON.stringify(
-      await client.query('SELECT COUNT(1) FROM tmp_buffered_event_pts;'),
-      null,
-      4
-    )
-  );
 };
 
 const finishUp = () => client.query('VACUUM ANALYZE transcom_events;');
@@ -277,28 +270,34 @@ const finishUp = () => client.query('VACUUM ANALYZE transcom_events;');
 (async () => {
   await client.connect();
 
-  const lastestStartTime = await getLatestStartTime();
-  const latestUpdateTime = await getLatestUpdateTime();
+  const startDateTime = argv.startDateTime || (await getLatestStartTime());
+  // const latestUpdateTime = await getLatestUpdateTime();
 
-  const now = new Date();
+  const endDateTime = argv.endDateTime || new Date();
 
-  const { list: inputData } = await getEventsFromAPI(lastestStartTime, now);
+  const { list: inputData } = await getEventsFromAPI(
+    startDateTime,
+    endDateTime
+  );
 
   if (!Array.isArray(inputData)) {
     throw new Error('inputData list field is not an array');
   }
 
+  console.log('# Events:', inputData.length);
+
   const parsedData = parseData(inputData);
 
   await createTempTable();
   await populateTempTable(parsedData);
-  await setEventCategory();
+  await setPointGeom();
 
   await copyFromTemp();
 
   await dropTempTable();
 
-  await mapEventsToTMCs(latestUpdateTime);
+  // await mapEventsToTMCs(latestUpdateTime);
+  await mapEventsToTMCs(null);
   await finishUp();
 
   client.end();

@@ -8,6 +8,7 @@
   "dependencies": {
     "fast-csv": "^2.4.1",
     "json2csv": "^3.11.2",
+    "minimist": "^1.2.0",
     "mkdirp": "^0.5.1",
     "node-env-file": "^0.1.8",
     "pg": "^7.6.1",

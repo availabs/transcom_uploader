@@ -10,11 +10,9 @@ mkdir -p "$SQL_DIR"
 
 source '../config/postgres.env.prod'
 
-DATESTAMP="$(date +'%Y%m%dT%H%M%S')"
-
 pg_dump \
-  --table=public.transcom_events --no-owner |
+  --table=public.inrix_shapefile --table=ny.inrix_shapefile_20171107 --no-owner |
   gzip -9 \
-  > "${SQL_DIR}/transcom_events.${DATESTAMP}.sql.gz"
+  > "${SQL_DIR}/ny.inrix_shapefile_20171107.sql.gz"
 
 popd >/dev/null

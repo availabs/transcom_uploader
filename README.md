@@ -1,12 +1,13 @@
-### STEPS TO RUN:
-1) npm install
-2) create "DB_INFO.json" with DB info 
-3) node upload_events (assumes public.transcom_events table in npmrds_api)
+## STEPS TO RUN:
 
-### NOTES:
+## Backup the transcom_events table
+```
+./src/backupTransomEventsTable.sh
+```
 
-Default start/end date is TODAY.<br />
-Can modify the default dates within the file itself instead of using command line arguments.<br />
-Start-date cannot be after today's date.<br />
-End-date can be after today's date, but will effectively be today's date.<br />
-Time of day cannot be specified via command line -- start is set at 00:00:00, end at 23:59:00. 
+Output will be written to `sql/transcom_events.${DATESTAMP}.sql.gz`
+
+## Running the loader
+
+See tasks/load201710-201811.js
+  
